@@ -507,6 +507,12 @@ int module_close(void)
 	sem_destroy(&espeak_play_semaphore);
 	sem_destroy(&espeak_stop_or_pause_semaphore);
 
+	g_free(EspeakPunctuationList);
+	EspeakPunctuationList = NULL;
+
+	g_free(EspeakSoundIconFolder);
+	EspeakSoundIconFolder = NULL;
+
 	return 0;
 }
 
