@@ -34,6 +34,7 @@
 /* System includes. */
 #include <string.h>
 #include <glib.h>
+#include <gio/gio.h>
 #include <semaphore.h>
 
 /* espeak header file */
@@ -188,20 +189,19 @@ static void *_espeak_play(void *);
 /* The stop_or_pause start routine. */
 static void *_espeak_stop_or_pause(void *);
 
-/* > */
-/* < Module configuration options*/
+/* Module configuration variables */
 
-MOD_OPTION_1_STR(EspeakPunctuationList)
-    MOD_OPTION_1_INT(EspeakCapitalPitchRise)
-    MOD_OPTION_1_INT(EspeakMinRate)
-    MOD_OPTION_1_INT(EspeakNormalRate)
-    MOD_OPTION_1_INT(EspeakMaxRate)
-    MOD_OPTION_1_INT(EspeakListVoiceVariants)
-
-    MOD_OPTION_1_INT(EspeakAudioChunkSize)
-    MOD_OPTION_1_INT(EspeakAudioQueueMaxSize)
-    MOD_OPTION_1_STR(EspeakSoundIconFolder)
-    MOD_OPTION_1_INT(EspeakSoundIconVolume)
+static GSettings *espeak_settings = NULL;
+static gchar     *EspeakPunctuationList = NULL;
+static gchar     *EspeakSoundIconFolder = NULL;
+static guint      EspeakCapitalPitchRise = 0;
+static guint      EspeakMinRate = 0;
+static guint      EspeakNormalRate = 0;
+static guint      EspeakMaxRate = 0;
+static guint      EspeakAudioChunkSize = 0;
+static guint      EspeakAudioQueueMaxSize = 0;
+static guint      EspeakSoundIconVolume = 0;
+static gboolean   EspeakListVoiceVariants = FALSE;
 
 /* > */
 /* < Public functions */
@@ -211,19 +211,20 @@ int module_load(void)
 
 	REGISTER_DEBUG();
 
-	/* Options */
-	MOD_OPTION_1_INT_REG(EspeakAudioChunkSize, 2000);
-	MOD_OPTION_1_INT_REG(EspeakAudioQueueMaxSize, 20 * 22050);
-	MOD_OPTION_1_STR_REG(EspeakSoundIconFolder,
-			     "/usr/share/sounds/sound-icons/");
-	MOD_OPTION_1_INT_REG(EspeakSoundIconVolume, 0);
+	espeak_settings = g_settings_new("org.freebsoft.speechd.modules."MODULE_NAME);
 
-	MOD_OPTION_1_INT_REG(EspeakMinRate, 80);
-	MOD_OPTION_1_INT_REG(EspeakNormalRate, 170);
-	MOD_OPTION_1_INT_REG(EspeakMaxRate, 390);
-	MOD_OPTION_1_STR_REG(EspeakPunctuationList, "@/+-_");
-	MOD_OPTION_1_INT_REG(EspeakCapitalPitchRise, 800);
-	MOD_OPTION_1_INT_REG(EspeakListVoiceVariants, 0);
+	EspeakAudioChunkSize = g_settings_get_uint(espeak_settings, "audio-chunk-size");
+	EspeakAudioQueueMaxSize = g_settings_get_uint(espeak_settings, "audio-queue-max-size");
+	EspeakSoundIconFolder = g_settings_get_string(espeak_settings, "sound-icon-folder");
+	EspeakSoundIconVolume = g_settings_get_uint(espeak_settings, "sound-icon-volume");
+
+	EspeakMinRate = g_settings_get_uint(espeak_settings, "min-rate");
+	EspeakNormalRate = g_settings_get_uint(espeak_settings, "normal-rate");
+	EspeakMaxRate = g_settings_get_uint(espeak_settings, "max-rate");
+	EspeakPunctuationList = g_settings_get_string(espeak_settings, "punctuation-list");
+	EspeakCapitalPitchRise = g_settings_get_uint(espeak_settings, "capital-pitch-rise");
+	EspeakListVoiceVariants = g_settings_get_boolean(espeak_settings, "list-voice-variants");
+
 	if (EspeakCapitalPitchRise == 1 || EspeakCapitalPitchRise == 2) {
 		EspeakCapitalPitchRise = 0;
 	}
