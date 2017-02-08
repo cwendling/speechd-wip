@@ -1305,6 +1305,8 @@ void speechd_shutdown(void)
 
 	fflush(NULL);
 
+	g_object_unref(spd_settings);
+
 	g_main_loop_unref(main_loop);
 	main_loop = NULL;
 

@@ -513,6 +513,8 @@ int module_close(void)
 	g_free(EspeakSoundIconFolder);
 	EspeakSoundIconFolder = NULL;
 
+	g_object_unref(espeak_settings);
+
 	return 0;
 }
 
