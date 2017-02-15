@@ -30,6 +30,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <glib.h>
+#include <gio/gio.h>
 #include <dotconf.h>
 #include <ltdl.h>
 
@@ -76,6 +77,8 @@ int main(int argc, char *argv[])
 	size_t n;
 	char *configfilename = NULL;
 	char *status_info = NULL;
+	char *msg = NULL;
+	GSettings *global_settings;
 
 	/* Initialize ltdl's list of preloaded audio backends. */
 	LTDL_SET_PRELOADED_SYMBOLS();
@@ -161,6 +164,49 @@ int main(int argc, char *argv[])
 
 	g_free(status_info);
 	g_free(cmd_buf);
+	status_info = NULL;
+
+	global_settings = g_settings_new("org.freebsoft.speechd.server");
+
+	/*
+	 * FIXME: This probably can be done better, although probably not
+	 * worth worrying about since audio code is being moved to the
+	 * server in the longer term.
+	 */
+	set_audio_var(0, g_settings_get_string(global_settings, "audio-output-method"));
+	set_audio_var(1, g_settings_get_string(global_settings, "audio-oss-device"));
+	set_audio_var(2, g_settings_get_string(global_settings, "audio-alsa-device"));
+	set_audio_var(3, g_settings_get_string(global_settings, "audio-nas-server"));
+	set_audio_var(4, g_settings_get_string(global_settings, "audio-pulse-server"));
+	/* A hack to store this as a string for now. */
+	set_audio_var(5, g_strdup_printf("%d", g_settings_get_uint(global_settings, "audio-pulse-min-length")));
+
+	log_level = g_settings_get_uint(global_settings, "log-level");
+
+	g_object_unref(global_settings);
+
+	ret = module_audio_init(&status_info);
+
+	if (ret == 0)
+		msg = g_strdup_printf("203 OK AUDIO INITIALIZED");
+	else
+		msg = g_strdup_printf("300-%s\n300 UNKNOWN ERROR", status_info);
+
+	g_free(status_info);
+
+	pthread_mutex_lock(&module_stdout_mutex);
+	if (printf("%s\n", msg) < 0) {
+		DBG("Broken pipe, exiting...\n");
+		g_free(msg);
+		module_close();
+		exit(2);
+	}
+
+	fflush(stdout);
+	pthread_mutex_unlock(&module_stdout_mutex);
+	g_free(msg);
+
+	spd_audio_set_loglevel(module_audio_id, log_level);
 
 	while (1) {
 		cmd_buf = NULL;
@@ -189,10 +235,6 @@ int main(int argc, char *argv[])
 		PROCESS_CMD(LIST VOICES, do_list_voices)
 		    else
 		PROCESS_CMD(SET, do_set)
-		    else
-		PROCESS_CMD(AUDIO, do_audio)
-		    else
-		PROCESS_CMD(LOGLEVEL, do_loglevel)
 		    else
 		PROCESS_CMD_W_ARGS(DEBUG, do_debug)
 		    else

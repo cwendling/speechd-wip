@@ -197,7 +197,7 @@ void do_stop(void);
 void do_pause(void);
 char *do_list_voices(void);
 char *do_set(void);
-char *do_audio(void);
+void set_audio_var(guint index, gchar* value);
 char *do_loglevel(void);
 char *do_debug(char *cmd_buf);
 void do_quit(void);
