@@ -31,11 +31,14 @@
 #include <pthread.h>
 #include <glib.h>
 #include <gio/gio.h>
+#include <glib-unix.h>
 #include <dotconf.h>
 #include <ltdl.h>
 
 #include <spd_utils.h>
 #include "module_utils.h"
+
+static GMainLoop *main_loop = NULL;
 
 #define PROCESS_CMD(command, function) \
 	if (!strcmp(cmd_buf, #command"\n")){ \
@@ -43,11 +46,15 @@
 		pthread_mutex_lock(&module_stdout_mutex); \
 		if (printf("%s\n", msg = (char*) function()) < 0){ \
 			DBG("Broken pipe, exiting...\n"); \
-			ret = 2; \
-			break; \
+			fflush(stdout); \
+			pthread_mutex_unlock(&module_stdout_mutex); \
+			g_free(msg); \
+			*retval = 2; \
+			g_main_loop_quit(main_loop); \
+			return FALSE; \
 		} \
 		fflush(stdout); \
-		pthread_mutex_unlock(&module_stdout_mutex);\
+		pthread_mutex_unlock(&module_stdout_mutex); \
 		g_free(msg); \
 	}
 
@@ -57,11 +64,15 @@
 		pthread_mutex_lock(&module_stdout_mutex); \
 		if (printf("%s\n", msg = (char*) function(cmd_buf)) < 0){ \
 			DBG("Broken pipe, exiting...\n"); \
-			ret = 2; \
-			break; \
+			fflush(stdout); \
+			pthread_mutex_unlock(&module_stdout_mutex); \
+			g_free(msg); \
+			*retval = 2; \
+			g_main_loop_quit(main_loop); \
+			return FALSE; \
 		} \
 		fflush(stdout); \
-		pthread_mutex_unlock(&module_stdout_mutex);\
+		pthread_mutex_unlock(&module_stdout_mutex); \
 		g_free(msg); \
 	}
 
@@ -69,6 +80,54 @@
 	if (!strcmp(cmd_buf, #command"\n")){ \
 		function(); \
 	}
+
+static gboolean process_incoming(gint fd, GIOCondition condition, gpointer data)
+{
+	char *cmd_buf = NULL;
+	size_t n = 0;
+	int ret;
+	int *retval = (int*)data;
+
+	ret = spd_getline(&cmd_buf, &n, stdin);
+	if (ret == -1) {
+		DBG("Broken pipe, exiting... \n");
+		*retval = 2;
+		g_main_loop_quit(main_loop);
+		return FALSE;
+	}
+
+	DBG("CMD: <%s>", cmd_buf);
+
+	PROCESS_CMD(SPEAK, do_speak)
+	    else
+	PROCESS_CMD(SOUND_ICON, do_sound_icon)
+	    else
+	PROCESS_CMD(CHAR, do_char)
+	    else
+	PROCESS_CMD(KEY, do_key)
+	    else
+	PROCESS_CMD_NRP(STOP, do_stop)
+	    else
+	PROCESS_CMD_NRP(PAUSE, do_pause)
+	    else
+	PROCESS_CMD(LIST VOICES, do_list_voices)
+	    else
+	PROCESS_CMD(SET, do_set)
+	    else
+	PROCESS_CMD_W_ARGS(DEBUG, do_debug)
+	    else
+	if (!strcmp(cmd_buf, "QUIT\n")) {
+		*retval = 0;
+		g_main_loop_quit(main_loop);
+		return FALSE;
+	} else {
+		printf("300 ERR UNKNOWN COMMAND\n");
+		fflush(stdout);
+	}
+
+	g_free(cmd_buf);
+	return TRUE;
+}
 
 int main(int argc, char *argv[])
 {
@@ -198,7 +257,7 @@ int main(int argc, char *argv[])
 	if (printf("%s\n", msg) < 0) {
 		DBG("Broken pipe, exiting...\n");
 		g_free(msg);
-		module_close();
+		do_quit();
 		exit(2);
 	}
 
@@ -208,48 +267,15 @@ int main(int argc, char *argv[])
 
 	spd_audio_set_loglevel(module_audio_id, log_level);
 
-	while (1) {
-		cmd_buf = NULL;
-		n = 0;
-		ret = spd_getline(&cmd_buf, &n, stdin);
-		if (ret == -1) {
-			DBG("Broken pipe, exiting... \n");
-			ret = 2;
-			break;
-		}
+	main_loop = g_main_loop_new(g_main_context_default(), FALSE);
 
-		DBG("CMD: <%s>", cmd_buf);
+	g_unix_fd_add(fileno(stdin), G_IO_IN, process_incoming, &ret);
 
-		PROCESS_CMD(SPEAK, do_speak)
-		    else
-		PROCESS_CMD(SOUND_ICON, do_sound_icon)
-		    else
-		PROCESS_CMD(CHAR, do_char)
-		    else
-		PROCESS_CMD(KEY, do_key)
-		    else
-		PROCESS_CMD_NRP(STOP, do_stop)
-		    else
-		PROCESS_CMD_NRP(PAUSE, do_pause)
-		    else
-		PROCESS_CMD(LIST VOICES, do_list_voices)
-		    else
-		PROCESS_CMD(SET, do_set)
-		    else
-		PROCESS_CMD_W_ARGS(DEBUG, do_debug)
-		    else
-	if (!strcmp(cmd_buf, "QUIT\n")) {
-		do_quit();
-		exit(0);
-	} else {
-		printf("300 ERR UNKNOWN COMMAND\n");
-		fflush(stdout);
-	}
+	g_main_loop_run(main_loop);
 
-	g_free(cmd_buf);
-	}
-
-	module_close();
+	g_main_loop_unref(main_loop);
+	main_loop = NULL;
+	do_quit();
 	exit(ret);
 }
 
