@@ -94,6 +94,15 @@
       <default>true</default>
     </key>
 
+    <key name="enable-auto-spawn" type="b">
+      <_summary>Enable server auto spawning</_summary>
+      <_description>
+        Enabling auto spawn allows clients to load Speech Dispatcher automatically if it is not
+        already running.
+      </_description>
+      <default>true</default>
+    </key>
+
     <key name="timeout" type="u">
       <_summary>Timeout</_summary>
       <_description>

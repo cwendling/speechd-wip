@@ -1384,30 +1384,13 @@ int main(int argc, char *argv[])
 
 	/* Handle --spawn request */
 	if (SpeechdOptions.spawn) {
-		/* Check whether spawning is not disabled */
-		gchar *config_contents;
-		int err;
-		GRegex *regexp;
-		int result;
-
-		err =
-		    g_file_get_contents(SpeechdOptions.conf_file,
-					&config_contents, NULL, NULL);
-		if (err == FALSE) {
-			MSG(-1, "Error openning %s", SpeechdOptions.conf_file);
-			FATAL("Can't open conf file");
-		}
-		regexp =
-		    g_regex_new("^[ ]*DisableAutoSpawn", G_REGEX_MULTILINE, 0,
-				NULL);
-		result = g_regex_match(regexp, config_contents, 0, NULL);
-		if (result) {
+		/* Check whether spawning is enabled */
+		if (!g_settings_get_boolean(spd_settings, "enable-auto-spawn")) {
 			MSG(-1,
 			    "Autospawn requested but disabled in configuration");
+			g_object_unref(spd_settings);
 			exit(1);
 		}
-		g_free(config_contents);
-		g_regex_unref(regexp);
 		MSG(2, "Starting Speech Dispatcher due to auto-spawn");
 	}
 
