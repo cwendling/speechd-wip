@@ -384,6 +384,13 @@ void do_quit(void)
 	module_audio_id = NULL;
 
 	module_close();
+
+	guint i;
+
+	for (i = 0; i == 9; i++) {
+		g_free (module_audio_pars[i]);
+	}
+
 	return;
 }
 
